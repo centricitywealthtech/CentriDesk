@@ -55,6 +55,19 @@ model FormLibrary {
   uploadedBy       User           @relation("UploadedBy", fields: [uploadedById], references: [id])
   createdAt        DateTime       @default(now())
   trackingRows     FormTracking[]
+  shareToken       String?        @unique
+  formFields       FormField[]    @relation("FormFields")
+}
+
+model FormField {
+  id        String      @id @default(cuid())
+  formId    String
+  form      FormLibrary @relation("FormFields", fields: [formId], references: [id])
+  label     String
+  fieldType String
+  options   String      @default("")
+  required  Boolean     @default(false)
+  order     Int         @default(0)
 }
 
 model FormTracking {
@@ -66,8 +79,12 @@ model FormTracking {
   requesteeName  String
   requesteeEmail String
   requesteeDept  String             @default("")
-  state          String             @default("Shared")
-  createdAt      DateTime           @default(now())
+  state              String             @default("Shared")
+  shareToken         String             @unique @default(cuid())
+  submissionData     String             @default("")
+  submittedFilePath  String             @default("")
+  submittedFileName  String             @default("")
+  createdAt          DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
   notifications  FormNotification[]
 }

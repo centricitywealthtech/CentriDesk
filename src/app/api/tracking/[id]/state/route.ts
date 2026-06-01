@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getSessionUser } from "@/lib/session-user";
 import { prisma } from "@/lib/prisma";
 
 const TERMINAL_STATES = ["Approved", "Rejected"];
@@ -10,8 +9,8 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const session = await getServerSession(authOptions);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = await getSessionUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { state } = await req.json();
 
@@ -31,28 +30,30 @@ export async function PATCH(
     data: { state },
   });
 
-  // Determine who to notify
-  const isAdmin = session.user.role === "ADMIN";
-  const callerId = session.user.id;
   const formName = tracking.form.name;
   let notifyUserIds: string[] = [];
   let message = "";
 
   if (SPECIAL_STATES.includes(state)) {
     const admins = await prisma.user.findMany({ where: { role: "ADMIN", isActive: true } });
-    const allIds = [...new Set([...admins.map((a) => a.id), tracking.sharedById])];
-    notifyUserIds = allIds.filter((id) => id !== callerId);
+    const seen = new Set<string>();
+    const allIds = [...admins.map((a) => a.id), tracking.sharedById].filter((id) => {
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+    notifyUserIds = allIds.filter((id) => id !== user.id);
     message =
       state === "Pending Approval"
         ? `"${formName}" is Pending Approval`
         : `"${formName}" has been ${state}`;
-  } else if (isAdmin) {
+  } else if (user.role === "ADMIN") {
     message = `"${formName}" moved to "${state}" by Admin`;
-    notifyUserIds = tracking.sharedById !== callerId ? [tracking.sharedById] : [];
+    notifyUserIds = tracking.sharedById !== user.id ? [tracking.sharedById] : [];
   } else {
     const admins = await prisma.user.findMany({ where: { role: "ADMIN", isActive: true } });
-    message = `"${formName}" moved to "${state}" by ${session.user.name}`;
-    notifyUserIds = admins.map((a) => a.id).filter((id) => id !== callerId);
+    message = `"${formName}" moved to "${state}" by ${user.name}`;
+    notifyUserIds = admins.map((a) => a.id).filter((id) => id !== user.id);
   }
 
   for (const userId of notifyUserIds) {
