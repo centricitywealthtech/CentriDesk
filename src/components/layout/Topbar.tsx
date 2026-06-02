@@ -13,6 +13,7 @@ const PAGE_LABELS: Record<string, string> = {
   "/admin/users/new": "Add User",
   "/system-request": "Forms Library",
   "/tracking": "Form Tracking",
+  "/it-request": "IT Request Form",
 };
 
 export function Topbar() {
