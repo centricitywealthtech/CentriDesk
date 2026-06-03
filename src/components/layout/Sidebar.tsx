@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { LayoutDashboard, FileText, Users, ClipboardList, ListChecks, Monitor } from "lucide-react";
+import { LayoutDashboard, FileText, Users, ClipboardList, ListChecks, Link2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function Sidebar() {
@@ -15,8 +15,8 @@ export function Sidebar() {
     ...(isAdmin ? [{ href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" }] : []),
     { href: "/subscriptions", icon: FileText, label: "Expenses" },
     { href: "/system-request", icon: ClipboardList, label: "Forms Library" },
-    { href: "/tracking", icon: ListChecks, label: "Form Tracking" },
-    { href: "/it-request", icon: Monitor, label: "IT Request Form" },
+    { href: "/form-links", icon: Link2, label: "Form Links" },
+    { href: "/it-request", icon: ListChecks, label: "IT Request Form" },
     ...(isAdmin ? [{ href: "/admin/users", icon: Users, label: "Users" }] : []),
   ];
 

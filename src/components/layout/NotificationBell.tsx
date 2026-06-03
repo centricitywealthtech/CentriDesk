@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Bell, X, CalendarClock, ClipboardCheck } from "lucide-react";
+import { Bell, X, CalendarClock, ClipboardCheck, Monitor } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -21,7 +21,15 @@ type FormNotif = {
   read: boolean;
 };
 
-type Tab = "renewal" | "requests";
+type ITReqNotif = {
+  id: string;
+  message: string;
+  softwareRequestId: string;
+  createdAt: string;
+  read: boolean;
+};
+
+type Tab = "renewal" | "requests" | "it";
 
 function daysUntil(dateStr: string): number {
   const now = new Date();
@@ -57,6 +65,7 @@ export function NotificationBell() {
   const router = useRouter();
   const [renewals, setRenewals] = useState<ExpiringRecord[]>([]);
   const [formNotifs, setFormNotifs] = useState<FormNotif[]>([]);
+  const [itNotifs, setItNotifs] = useState<ITReqNotif[]>([]);
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<Tab>("renewal");
   const ref = useRef<HTMLDivElement>(null);
@@ -75,13 +84,22 @@ export function NotificationBell() {
     } catch { /* ignore */ }
   }, []);
 
+  const fetchItNotifs = useCallback(async () => {
+    try {
+      const res = await fetch("/api/it-request-notifications");
+      if (res.ok) setItNotifs(await res.json());
+    } catch { /* ignore */ }
+  }, []);
+
   useEffect(() => {
     fetchRenewals();
     fetchFormNotifs();
+    fetchItNotifs();
     const r = setInterval(fetchRenewals, 5 * 60 * 1000);
     const f = setInterval(fetchFormNotifs, 30 * 1000);
-    return () => { clearInterval(r); clearInterval(f); };
-  }, [fetchRenewals, fetchFormNotifs]);
+    const i = setInterval(fetchItNotifs, 30 * 1000);
+    return () => { clearInterval(r); clearInterval(f); clearInterval(i); };
+  }, [fetchRenewals, fetchFormNotifs, fetchItNotifs]);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -92,14 +110,20 @@ export function NotificationBell() {
   }, [open]);
 
   async function handleFormNotifClick(notif: FormNotif) {
-    // Mark as read
     await fetch(`/api/form-notifications/${notif.id}`, { method: "PATCH" });
     setFormNotifs((prev) => prev.filter((n) => n.id !== notif.id));
     setOpen(false);
     router.push(`/tracking`);
   }
 
-  const totalCount = renewals.length + formNotifs.length;
+  async function handleItNotifClick(notif: ITReqNotif) {
+    await fetch(`/api/it-request-notifications/${notif.id}`, { method: "PATCH" });
+    setItNotifs((prev) => prev.filter((n) => n.id !== notif.id));
+    setOpen(false);
+    router.push(`/it-request`);
+  }
+
+  const totalCount = renewals.length + formNotifs.length + itNotifs.length;
 
   return (
     <div ref={ref} className="relative">
@@ -153,6 +177,20 @@ export function NotificationBell() {
               {formNotifs.length > 0 && (
                 <span className="bg-red-500 text-white text-[8px] font-bold px-1 py-0.5 rounded-full leading-none">
                   {formNotifs.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setTab("it")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-t transition-colors border-b-2 -mb-px ${
+                tab === "it" ? "text-[#E8952A] border-[#E8952A]" : "text-gray-400 border-transparent hover:text-gray-200"
+              }`}
+            >
+              <Monitor size={11} />
+              IT Requests
+              {itNotifs.length > 0 && (
+                <span className="bg-red-500 text-white text-[8px] font-bold px-1 py-0.5 rounded-full leading-none">
+                  {itNotifs.length}
                 </span>
               )}
             </button>
@@ -214,6 +252,29 @@ export function NotificationBell() {
                 ))
               )
             )}
+
+            {tab === "it" && (
+              itNotifs.length === 0 ? (
+                <div className="px-4 py-8 text-center">
+                  <Monitor size={24} className="text-gray-600 mx-auto mb-2" />
+                  <p className="text-gray-500 text-xs">No new IT request notifications</p>
+                </div>
+              ) : (
+                itNotifs.map((notif) => (
+                  <button
+                    key={notif.id}
+                    onClick={() => handleItNotifClick(notif)}
+                    className="w-full text-left flex items-start gap-3 px-4 py-3 border-b border-white/5 hover:bg-white/5 transition-colors"
+                  >
+                    <div className="w-2 h-2 rounded-full bg-[#E8952A] mt-1.5 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-white text-xs leading-snug">{notif.message}</p>
+                      <p className="text-gray-500 text-[10px] mt-0.5">{timeAgo(notif.createdAt)}</p>
+                    </div>
+                  </button>
+                ))
+              )
+            )}
           </div>
 
           {tab === "renewal" && renewals.length > 0 && (
@@ -224,6 +285,11 @@ export function NotificationBell() {
           {tab === "requests" && formNotifs.length > 0 && (
             <div className="px-4 py-2 border-t border-white/10">
               <p className="text-gray-500 text-[10px] text-center">Click a notification to go to Form Tracking</p>
+            </div>
+          )}
+          {tab === "it" && itNotifs.length > 0 && (
+            <div className="px-4 py-2 border-t border-white/10">
+              <p className="text-gray-500 text-[10px] text-center">Click a notification to go to IT Requests</p>
             </div>
           )}
         </div>

@@ -12,6 +12,7 @@ const PAGE_LABELS: Record<string, string> = {
   "/admin/users": "User Management",
   "/admin/users/new": "Add User",
   "/system-request": "Forms Library",
+  "/form-links": "Form Links",
   "/tracking": "Form Tracking",
   "/it-request": "IT Request Form",
 };
