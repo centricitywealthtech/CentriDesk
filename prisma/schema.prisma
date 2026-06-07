@@ -3,12 +3,12 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
 model User {
-  id        String   @id @default(cuid())
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
   name      String
   email     String   @unique
   password  String
@@ -17,15 +17,15 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  subscriptions     VendorSubscription[] @relation("CreatedBy")
-  uploadedForms     FormLibrary[]        @relation("UploadedBy")
-  sharedTrackings   FormTracking[]       @relation("SharedBy")
-  formNotifications     FormNotification[]      @relation("FormNotifs")
+  subscriptions          VendorSubscription[]    @relation("CreatedBy")
+  uploadedForms          FormLibrary[]           @relation("UploadedBy")
+  sharedTrackings        FormTracking[]          @relation("SharedBy")
+  formNotifications      FormNotification[]      @relation("FormNotifs")
   itRequestNotifications ITRequestNotification[] @relation("ITReqNotifs")
 }
 
 model VendorSubscription {
-  id                 String    @id @default(cuid())
+  id                 String    @id @default(auto()) @map("_id") @db.ObjectId
   vendor             String
   department         String
   useFor             String
@@ -38,7 +38,7 @@ model VendorSubscription {
   paidOneTime        Boolean   @default(false)
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
-  createdById        String
+  createdById        String    @db.ObjectId
   createdBy          User      @relation("CreatedBy", fields: [createdById], references: [id])
   updatedByName      String    @default("")
   requestedBy        String    @default("")
@@ -47,12 +47,12 @@ model VendorSubscription {
 }
 
 model FormLibrary {
-  id               String         @id @default(cuid())
+  id               String         @id @default(auto()) @map("_id") @db.ObjectId
   name             String
   category         String
   filePath         String
   originalFileName String
-  uploadedById     String
+  uploadedById     String         @db.ObjectId
   uploadedBy       User           @relation("UploadedBy", fields: [uploadedById], references: [id])
   createdAt        DateTime       @default(now())
   trackingRows     FormTracking[]
@@ -61,8 +61,8 @@ model FormLibrary {
 }
 
 model FormField {
-  id        String      @id @default(cuid())
-  formId    String
+  id        String      @id @default(auto()) @map("_id") @db.ObjectId
+  formId    String      @db.ObjectId
   form      FormLibrary @relation("FormFields", fields: [formId], references: [id])
   label     String
   fieldType String
@@ -72,34 +72,32 @@ model FormField {
 }
 
 model FormTracking {
-  id             String             @id @default(cuid())
-  formId         String
-  form           FormLibrary        @relation(fields: [formId], references: [id])
-  sharedById     String
-  sharedBy       User               @relation("SharedBy", fields: [sharedById], references: [id])
-  requesteeName  String
-  requesteeEmail String
-  requesteeDept  String             @default("")
-  state              String             @default("Shared")
-  shareToken         String             @unique @default(cuid())
-  submissionData     String             @default("")
-  submittedFilePath  String             @default("")
-  submittedFileName  String             @default("")
-  createdAt          DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
-  notifications  FormNotification[]
+  id                String             @id @default(auto()) @map("_id") @db.ObjectId
+  formId            String             @db.ObjectId
+  form              FormLibrary        @relation(fields: [formId], references: [id])
+  sharedById        String             @db.ObjectId
+  sharedBy          User               @relation("SharedBy", fields: [sharedById], references: [id])
+  requesteeName     String
+  requesteeEmail    String
+  requesteeDept     String             @default("")
+  state             String             @default("Shared")
+  shareToken        String             @unique @default(cuid())
+  submissionData    String             @default("")
+  submittedFilePath String             @default("")
+  submittedFileName String             @default("")
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  notifications     FormNotification[]
 }
 
 model SoftwareRequest {
-  id                    String   @id @default(cuid())
-  // Section 1 — Request Details
+  id                    String   @id @default(auto()) @map("_id") @db.ObjectId
   requestedBy           String
   employeeId            String   @default("")
   department            String   @default("")
   designation           String   @default("")
   emailId               String
   requestDate           String   @default("")
-  // Section 2 — Software Details
   softwareName          String
   softwareVersion       String   @default("")
   vendorName            String   @default("")
@@ -107,41 +105,32 @@ model SoftwareRequest {
   licenseType           String   @default("")
   licensesRequired      String   @default("")
   installationOn        String   @default("")
-  // Section 3 — Business Justification
   purposeOfInstallation String   @default("")
   businessImpact        String   @default("")
-  // Policy Authority
   policyPreparedBy      String   @default("")
   policyReviewedBy      String   @default("")
   policyApprovedBy      String   @default("")
   policyEffectiveDate   String   @default("")
-  // Version Control (JSON array)
   versionControl        String   @default("")
-  // Section 4 — Technical Review
   techCompatibility     String   @default("")
   techAntivirusScan     String   @default("")
   techLicenseVerif      String   @default("")
   techVendorValidation  String   @default("")
   techAdminRights       String   @default("")
   techRemarks           String   @default("")
-  // Section 5 — Information Security Review
   secDlpCompliance      String   @default("")
   secRiskAssessment     String   @default("")
   secApprovalStatus     String   @default("")
   secRemarks            String   @default("")
-  // Section 6 — Approval Matrix (JSON)
   approvalMatrix        String   @default("")
-  // Section 7 — Installation Status
   instCompletedBy       String   @default("")
   instDate              String   @default("")
   instSoftwareInstalled String   @default("")
   instLicenseUpdated    String   @default("")
   instAssetUpdated      String   @default("")
   instRemarks           String   @default("")
-  // Section 8 — Employee Acknowledgement
   ackEmployeeName       String   @default("")
   ackSignatureDate      String   @default("")
-  // Workflow
   state                 String   @default("Submitted")
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
@@ -149,22 +138,22 @@ model SoftwareRequest {
 }
 
 model ITRequestNotification {
-  id                String          @id @default(cuid())
-  userId            String
+  id                String          @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String          @db.ObjectId
   user              User            @relation("ITReqNotifs", fields: [userId], references: [id])
   message           String
-  softwareRequestId String
+  softwareRequestId String          @db.ObjectId
   softwareRequest   SoftwareRequest @relation(fields: [softwareRequestId], references: [id])
   read              Boolean         @default(false)
   createdAt         DateTime        @default(now())
 }
 
 model FormNotification {
-  id         String       @id @default(cuid())
-  userId     String
+  id         String       @id @default(auto()) @map("_id") @db.ObjectId
+  userId     String       @db.ObjectId
   user       User         @relation("FormNotifs", fields: [userId], references: [id])
   message    String
-  trackingId String
+  trackingId String       @db.ObjectId
   tracking   FormTracking @relation(fields: [trackingId], references: [id])
   read       Boolean      @default(false)
   createdAt  DateTime     @default(now())
