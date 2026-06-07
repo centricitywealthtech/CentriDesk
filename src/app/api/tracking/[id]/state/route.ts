@@ -1,66 +1,56 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/session-user";
-import { prisma } from "@/lib/prisma";
+import { connectDB } from "@/lib/db";
+import { FormTracking } from "@/lib/models/FormTracking";
+import { FormNotification } from "@/lib/models/FormNotification";
+import { User } from "@/lib/models/User";
 
 const TERMINAL_STATES = ["Approved", "Rejected"];
 const SPECIAL_STATES = ["Pending Approval", "Approved", "Rejected"];
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { state } = await req.json();
 
-  const tracking = await prisma.formTracking.findUnique({
-    where: { id: params.id },
-    include: { form: true },
-  });
-
+  await connectDB();
+  const tracking = await FormTracking.findById(params.id).populate("formId", "name").lean();
   if (!tracking) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
   if (TERMINAL_STATES.includes(tracking.state)) {
     return NextResponse.json({ error: "Cannot change a terminal state" }, { status: 400 });
   }
 
-  const updated = await prisma.formTracking.update({
-    where: { id: params.id },
-    data: { state },
-  });
+  await FormTracking.findByIdAndUpdate(params.id, { state });
 
-  const formName = tracking.form.name;
+  const formName = (tracking.formId as { name?: string })?.name ?? "";
   let notifyUserIds: string[] = [];
   let message = "";
 
   if (SPECIAL_STATES.includes(state)) {
-    const admins = await prisma.user.findMany({ where: { role: "ADMIN", isActive: true } });
+    const admins = await User.find({ role: "ADMIN", isActive: true }).select("_id").lean();
     const seen = new Set<string>();
-    const allIds = [...admins.map((a) => a.id), tracking.sharedById].filter((id) => {
-      if (seen.has(id)) return false;
-      seen.add(id);
-      return true;
-    });
+    const allIds = [
+      ...admins.map((a) => (a._id as { toString(): string }).toString()),
+      tracking.sharedById.toString(),
+    ].filter((id) => { if (seen.has(id)) return false; seen.add(id); return true; });
     notifyUserIds = allIds.filter((id) => id !== user.id);
-    message =
-      state === "Pending Approval"
-        ? `"${formName}" is Pending Approval`
-        : `"${formName}" has been ${state}`;
+    message = state === "Pending Approval"
+      ? `"${formName}" is Pending Approval`
+      : `"${formName}" has been ${state}`;
   } else if (user.role === "ADMIN") {
     message = `"${formName}" moved to "${state}" by Admin`;
-    notifyUserIds = tracking.sharedById !== user.id ? [tracking.sharedById] : [];
+    notifyUserIds = tracking.sharedById.toString() !== user.id ? [tracking.sharedById.toString()] : [];
   } else {
-    const admins = await prisma.user.findMany({ where: { role: "ADMIN", isActive: true } });
+    const admins = await User.find({ role: "ADMIN", isActive: true }).select("_id").lean();
     message = `"${formName}" moved to "${state}" by ${user.name}`;
-    notifyUserIds = admins.map((a) => a.id).filter((id) => id !== user.id);
+    notifyUserIds = admins.map((a) => (a._id as { toString(): string }).toString()).filter((id) => id !== user.id);
   }
 
-  for (const userId of notifyUserIds) {
-    await prisma.formNotification.create({
-      data: { userId, message, trackingId: params.id },
-    });
+  if (notifyUserIds.length > 0) {
+    await FormNotification.insertMany(notifyUserIds.map((userId) => ({ userId, message, trackingId: params.id })));
   }
 
-  return NextResponse.json(updated);
+  const updated = await FormTracking.findById(params.id).lean();
+  return NextResponse.json({ ...updated, id: (updated?._id as { toString(): string })?.toString() });
 }

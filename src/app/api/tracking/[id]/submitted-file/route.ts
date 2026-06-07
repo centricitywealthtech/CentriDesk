@@ -1,21 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/session-user";
-import { prisma } from "@/lib/prisma";
+import { connectDB } from "@/lib/db";
+import { FormTracking } from "@/lib/models/FormTracking";
 import { readFile } from "fs/promises";
 import { join } from "path";
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const tracking = await prisma.formTracking.findUnique({
-    where: { id: params.id },
-    select: { submittedFilePath: true, submittedFileName: true },
-  });
-
+  await connectDB();
+  const tracking = await FormTracking.findById(params.id).select("submittedFilePath submittedFileName").lean();
   if (!tracking?.submittedFilePath) {
     return new NextResponse("No file submitted.", { status: 404 });
   }

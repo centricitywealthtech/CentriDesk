@@ -1,18 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/session-user";
-import { prisma } from "@/lib/prisma";
+import { connectDB } from "@/lib/db";
+import { FormLibrary } from "@/lib/models/FormLibrary";
+import { FormField } from "@/lib/models/FormField";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import { randomUUID } from "crypto";
 
 const ALLOWED_EXT = [".pdf", ".docx", ".doc"];
 
-type FieldInput = {
-  label: string;
-  fieldType: string;
-  options: string;
-  required: boolean;
-};
+type FieldInput = { label: string; fieldType: string; options: string; required: boolean };
 
 export async function POST(req: NextRequest) {
   const user = await getSessionUser();
@@ -21,11 +18,8 @@ export async function POST(req: NextRequest) {
   }
 
   let formData: FormData;
-  try {
-    formData = await req.formData();
-  } catch {
-    return NextResponse.json({ error: "Failed to parse form data" }, { status: 400 });
-  }
+  try { formData = await req.formData(); }
+  catch { return NextResponse.json({ error: "Failed to parse form data" }, { status: 400 }); }
 
   const name = formData.get("name") as string;
   const category = formData.get("category") as string;
@@ -44,38 +38,31 @@ export async function POST(req: NextRequest) {
   const filename = `${randomUUID()}${ext}`;
   const uploadDir = join(process.cwd(), "uploads", "forms");
   await mkdir(uploadDir, { recursive: true });
-  const buffer = Buffer.from(await file.arrayBuffer());
-  await writeFile(join(uploadDir, filename), buffer);
+  await writeFile(join(uploadDir, filename), Buffer.from(await file.arrayBuffer()));
 
-  const record = await prisma.formLibrary.create({
-    data: {
-      name,
-      category,
-      filePath: `uploads/forms/${filename}`,
-      originalFileName: file.name,
-      uploadedById: user.id,
-      shareToken: randomUUID(),
-    },
-    include: { uploadedBy: { select: { name: true } } },
+  await connectDB();
+  const record = await FormLibrary.create({
+    name, category,
+    filePath: `uploads/forms/${filename}`,
+    originalFileName: file.name,
+    uploadedById: user.id,
+    shareToken: randomUUID(),
   });
 
-  // Create form fields
   const fields: FieldInput[] = fieldsJson ? JSON.parse(fieldsJson) : [];
-  for (let i = 0; i < fields.length; i++) {
-    const f = fields[i];
-    if (f.label?.trim()) {
-      await prisma.formField.create({
-        data: {
-          formId: record.id,
-          label: f.label.trim(),
-          fieldType: f.fieldType || "text",
-          options: f.options || "",
-          required: f.required ?? false,
-          order: i,
-        },
-      });
-    }
+  const validFields = fields.filter((f) => f.label?.trim());
+  if (validFields.length > 0) {
+    await FormField.insertMany(
+      validFields.map((f, i) => ({
+        formId: record._id,
+        label: f.label.trim(),
+        fieldType: f.fieldType || "text",
+        options: f.options || "",
+        required: f.required ?? false,
+        order: i,
+      }))
+    );
   }
 
-  return NextResponse.json(record, { status: 201 });
+  return NextResponse.json({ ...record.toJSON(), id: record._id.toString() }, { status: 201 });
 }

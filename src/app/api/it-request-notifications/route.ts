@@ -1,28 +1,27 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/session-user";
-import { prisma } from "@/lib/prisma";
+import { connectDB } from "@/lib/db";
+import { ITRequestNotification } from "@/lib/models/ITRequestNotification";
 import { redis } from "@/lib/redis";
 
-const TTL = 15; // 15 seconds
+const TTL = 15;
 
 export async function GET() {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const cacheKey = `it-notifs:${user.id}`;
-
   try {
     const cached = await redis.get(cacheKey);
     if (cached) return NextResponse.json(JSON.parse(cached));
-  } catch { /* redis unavailable, fall through */ }
+  } catch { /* redis unavailable */ }
 
-  const notifs = await prisma.iTRequestNotification.findMany({
-    where: { userId: user.id, read: false },
-    orderBy: { createdAt: "desc" },
-    include: { softwareRequest: { select: { softwareName: true, requestedBy: true } } },
-  });
+  await connectDB();
+  const notifs = await ITRequestNotification.find({ userId: user.id, read: false })
+    .sort({ createdAt: -1 })
+    .lean();
 
-  try { await redis.setex(cacheKey, TTL, JSON.stringify(notifs)); } catch { /* ignore */ }
-
-  return NextResponse.json(notifs);
+  const result = notifs.map((n) => ({ ...n, id: (n._id as { toString(): string }).toString() }));
+  try { await redis.setex(cacheKey, TTL, JSON.stringify(result)); } catch { /* ignore */ }
+  return NextResponse.json(result);
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/session-user";
-import { prisma } from "@/lib/prisma";
+import { connectDB } from "@/lib/db";
+import { SoftwareRequest } from "@/lib/models/SoftwareRequest";
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const user = await getSessionUser();
@@ -13,20 +14,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     licenseType, licensesRequired, installationOn,
     purposeOfInstallation, businessImpact,
     policyPreparedBy, policyReviewedBy, policyApprovedBy, policyEffectiveDate,
-    versionControl,
-    techCompatibility, techAntivirusScan, techLicenseVerif, techVendorValidation,
-    techAdminRights, techRemarks,
+    versionControl, techCompatibility, techAntivirusScan, techLicenseVerif,
+    techVendorValidation, techAdminRights, techRemarks,
     secDlpCompliance, secRiskAssessment, secApprovalStatus, secRemarks,
-    approvalMatrix,
-    instCompletedBy, instDate, instSoftwareInstalled, instLicenseUpdated,
-    instAssetUpdated, instRemarks,
-    ackEmployeeName, ackSignatureDate,
-    state,
+    approvalMatrix, instCompletedBy, instDate, instSoftwareInstalled,
+    instLicenseUpdated, instAssetUpdated, instRemarks, ackEmployeeName, ackSignatureDate, state,
   } = body;
 
-  const row = await prisma.softwareRequest.update({
-    where: { id: params.id },
-    data: {
+  await connectDB();
+  const row = await SoftwareRequest.findByIdAndUpdate(
+    params.id,
+    {
       requestedBy, employeeId, department, designation, emailId, requestDate,
       softwareName, softwareVersion, vendorName, softwareCategory,
       licenseType, licensesRequired, installationOn,
@@ -34,15 +32,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       policyPreparedBy, policyReviewedBy, policyApprovedBy, policyEffectiveDate,
       versionControl: versionControl ? JSON.stringify(versionControl) : undefined,
       techCompatibility, techAntivirusScan, techLicenseVerif, techVendorValidation,
-      techAdminRights, techRemarks,
-      secDlpCompliance, secRiskAssessment, secApprovalStatus, secRemarks,
+      techAdminRights, techRemarks, secDlpCompliance, secRiskAssessment,
+      secApprovalStatus, secRemarks,
       approvalMatrix: approvalMatrix ? JSON.stringify(approvalMatrix) : undefined,
       instCompletedBy, instDate, instSoftwareInstalled, instLicenseUpdated,
-      instAssetUpdated, instRemarks,
-      ackEmployeeName, ackSignatureDate,
-      state,
+      instAssetUpdated, instRemarks, ackEmployeeName, ackSignatureDate, state,
     },
-  });
+    { new: true }
+  ).lean();
 
-  return NextResponse.json(row);
+  return NextResponse.json({ ...row, id: (row?._id as { toString(): string })?.toString() });
 }

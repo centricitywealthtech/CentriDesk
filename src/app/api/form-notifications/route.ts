@@ -1,30 +1,34 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { connectDB } from "@/lib/db";
+import { FormNotification } from "@/lib/models/FormNotification";
 import { redis } from "@/lib/redis";
 
-const TTL = 15; // 15 seconds
+const TTL = 15;
 
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json([], { status: 401 });
 
   const cacheKey = `form-notifs:${session.user.id}`;
-
   try {
     const cached = await redis.get(cacheKey);
     if (cached) return NextResponse.json(JSON.parse(cached));
-  } catch { /* redis unavailable, fall through */ }
+  } catch { /* redis unavailable */ }
 
-  const notifications = await prisma.formNotification.findMany({
-    where: { userId: session.user.id, read: false },
-    orderBy: { createdAt: "desc" },
-    take: 20,
-    include: { tracking: { select: { id: true } } },
-  });
+  await connectDB();
+  const notifications = await FormNotification.find({ userId: session.user.id, read: false })
+    .sort({ createdAt: -1 })
+    .limit(20)
+    .lean();
 
-  try { await redis.setex(cacheKey, TTL, JSON.stringify(notifications)); } catch { /* ignore */ }
+  const result = notifications.map((n) => ({
+    ...n,
+    id: (n._id as { toString(): string }).toString(),
+    trackingId: n.trackingId?.toString(),
+  }));
 
-  return NextResponse.json(notifications);
+  try { await redis.setex(cacheKey, TTL, JSON.stringify(result)); } catch { /* ignore */ }
+  return NextResponse.json(result);
 }

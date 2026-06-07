@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/session-user";
-import { prisma } from "@/lib/prisma";
+import { connectDB } from "@/lib/db";
+import { FormTracking } from "@/lib/models/FormTracking";
+import { randomUUID } from "crypto";
+
+function toJSON(r: Record<string, unknown>) {
+  return { ...r, id: (r._id as { toString(): string }).toString() };
+}
 
 export async function GET(req: NextRequest) {
   const user = await getSessionUser();
@@ -9,19 +15,17 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const state = searchParams.get("state") ?? "";
 
-  const where: Record<string, unknown> = {};
-  if (state) where.state = state;
+  const query: Record<string, unknown> = {};
+  if (state) query.state = state;
 
-  const rows = await prisma.formTracking.findMany({
-    where,
-    orderBy: { createdAt: "desc" },
-    include: {
-      form: { select: { id: true, name: true } },
-      sharedBy: { select: { id: true, name: true } },
-    },
-  });
+  await connectDB();
+  const rows = await FormTracking.find(query)
+    .populate("formId", "name")
+    .populate("sharedById", "name")
+    .sort({ createdAt: -1 })
+    .lean();
 
-  return NextResponse.json(rows);
+  return NextResponse.json(rows.map(toJSON));
 }
 
 export async function POST(req: NextRequest) {
@@ -35,20 +39,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
-  const row = await prisma.formTracking.create({
-    data: {
-      formId,
-      sharedById: user.id,
-      requesteeName,
-      requesteeEmail,
-      requesteeDept: requesteeDept ?? "",
-      state: "Shared",
-    },
-    include: {
-      form: { select: { id: true, name: true } },
-      sharedBy: { select: { id: true, name: true } },
-    },
+  await connectDB();
+  const row = await FormTracking.create({
+    formId,
+    sharedById: user.id,
+    requesteeName,
+    requesteeEmail,
+    requesteeDept: requesteeDept ?? "",
+    state: "Shared",
+    shareToken: randomUUID(),
   });
 
-  return NextResponse.json(row, { status: 201 });
+  const populated = await FormTracking.findById(row._id)
+    .populate("formId", "name")
+    .populate("sharedById", "name")
+    .lean();
+
+  return NextResponse.json(toJSON(populated as Record<string, unknown>), { status: 201 });
 }

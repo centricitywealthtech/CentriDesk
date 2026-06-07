@@ -1,16 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { connectDB } from "@/lib/db";
+import { FormLibrary } from "@/lib/models/FormLibrary";
 import { readFile } from "fs/promises";
 import { join } from "path";
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: { token: string } }
-) {
-  const form = await prisma.formLibrary.findUnique({
-    where: { shareToken: params.token },
-    select: { filePath: true, originalFileName: true },
-  });
+export async function GET(_req: NextRequest, { params }: { params: { token: string } }) {
+  await connectDB();
+  const form = await FormLibrary.findOne({ shareToken: params.token })
+    .select("filePath originalFileName")
+    .lean();
   if (!form) return new NextResponse("Link not found.", { status: 404 });
 
   try {

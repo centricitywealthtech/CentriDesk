@@ -1,33 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { connectDB } from "@/lib/db";
+import { FormTracking } from "@/lib/models/FormTracking";
+import { FormLibrary } from "@/lib/models/FormLibrary";
 import { readFile } from "fs/promises";
 import { join } from "path";
 
-// Public route — no auth required. Anyone with the token can download.
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: { token: string } }
-) {
-  const tracking = await prisma.formTracking.findUnique({
-    where: { shareToken: params.token },
-    include: { form: true },
-  });
+export async function GET(_req: NextRequest, { params }: { params: { token: string } }) {
+  await connectDB();
+  const tracking = await FormTracking.findOne({ shareToken: params.token }).lean();
+  if (!tracking) return new NextResponse("Link not found or expired.", { status: 404 });
 
-  if (!tracking) {
-    return new NextResponse("Link not found or expired.", { status: 404 });
-  }
+  const form = await FormLibrary.findById(tracking.formId).lean();
+  if (!form) return new NextResponse("Form not found.", { status: 404 });
 
   try {
-    const filePath = join(process.cwd(), tracking.form.filePath);
-    const buffer = await readFile(filePath);
-    const contentType = tracking.form.originalFileName.toLowerCase().endsWith(".pdf")
+    const buffer = await readFile(join(process.cwd(), form.filePath));
+    const contentType = form.originalFileName.toLowerCase().endsWith(".pdf")
       ? "application/pdf"
       : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-
     return new NextResponse(buffer, {
       headers: {
         "Content-Type": contentType,
-        "Content-Disposition": `attachment; filename="${tracking.form.originalFileName}"`,
+        "Content-Disposition": `attachment; filename="${form.originalFileName}"`,
       },
     });
   } catch {
