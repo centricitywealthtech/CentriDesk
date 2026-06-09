@@ -4,8 +4,9 @@ import { authOptions } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import { VendorSubscription } from "@/lib/models/VendorSubscription";
 
-function toJSON(r: Record<string, unknown>) {
-  return { ...r, id: (r._id as { toString(): string }).toString() };
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toJSON(r: any) {
+  return { ...r, id: r._id?.toString() };
 }
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
@@ -15,7 +16,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   await connectDB();
   const record = await VendorSubscription.findById(params.id).populate("createdById", "name").lean();
   if (!record) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(toJSON(record as Record<string, unknown>));
+  return NextResponse.json(toJSON(record));
 }
 
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
@@ -50,7 +51,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     { new: true }
   ).lean();
 
-  return NextResponse.json(toJSON(updated as Record<string, unknown>));
+  return NextResponse.json(toJSON(updated));
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {

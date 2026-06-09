@@ -2,7 +2,7 @@
 
 import { useSession } from "next-auth/react";
 import { SoftwareRequestAdmin } from "@/components/it-request/SoftwareRequestAdmin";
-import SoftwareRequestForm from "@/app/forms/it-request/page";
+import { SoftwareRequestForm } from "@/components/forms/SoftwareRequestForm";
 
 export default function ITRequestPage() {
   const { data: session, status } = useSession();

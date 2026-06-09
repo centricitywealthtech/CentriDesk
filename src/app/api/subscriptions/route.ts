@@ -4,8 +4,9 @@ import { authOptions } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import { VendorSubscription } from "@/lib/models/VendorSubscription";
 
-function toJSON(r: Record<string, unknown>) {
-  return { ...r, id: (r._id as { toString(): string }).toString() };
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toJSON(r: any) {
+  return { ...r, id: r._id?.toString() };
 }
 
 export async function GET(req: NextRequest) {
@@ -22,7 +23,16 @@ export async function GET(req: NextRequest) {
   if (type) query.subscriptionType = type;
   if (search) {
     const re = new RegExp(search, "i");
-    query.$or = [{ vendor: re }, { department: re }, { nature: re }];
+    query.$or = [
+      { vendor: re },
+      { department: re },
+      { nature: re },
+      { useFor: re },
+      { servicesProviding: re },
+      { subscriptionType: re },
+      { requestedBy: re },
+      { approvedBy: re },
+    ];
   }
 
   await connectDB();

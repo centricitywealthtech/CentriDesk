@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Bell, X, CalendarClock, ClipboardCheck, Monitor } from "lucide-react";
+import { Bell, X, CalendarClock, Monitor } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -29,7 +29,7 @@ type ITReqNotif = {
   read: boolean;
 };
 
-type Tab = "renewal" | "requests" | "it";
+type Tab = "renewal" | "it";
 
 function daysUntil(dateStr: string): number {
   const now = new Date();
@@ -109,13 +109,6 @@ export function NotificationBell() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, [open]);
 
-  async function handleFormNotifClick(notif: FormNotif) {
-    await fetch(`/api/form-notifications/${notif.id}`, { method: "PATCH" });
-    setFormNotifs((prev) => prev.filter((n) => n.id !== notif.id));
-    setOpen(false);
-    router.push(`/tracking`);
-  }
-
   async function handleItNotifClick(notif: ITReqNotif) {
     await fetch(`/api/it-request-notifications/${notif.id}`, { method: "PATCH" });
     setItNotifs((prev) => prev.filter((n) => n.id !== notif.id));
@@ -167,20 +160,6 @@ export function NotificationBell() {
               )}
             </button>
             <button
-              onClick={() => setTab("requests")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-t transition-colors border-b-2 -mb-px ${
-                tab === "requests" ? "text-[#E8952A] border-[#E8952A]" : "text-gray-400 border-transparent hover:text-gray-200"
-              }`}
-            >
-              <ClipboardCheck size={11} />
-              Requests
-              {formNotifs.length > 0 && (
-                <span className="bg-red-500 text-white text-[8px] font-bold px-1 py-0.5 rounded-full leading-none">
-                  {formNotifs.length}
-                </span>
-              )}
-            </button>
-            <button
               onClick={() => setTab("it")}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-t transition-colors border-b-2 -mb-px ${
                 tab === "it" ? "text-[#E8952A] border-[#E8952A]" : "text-gray-400 border-transparent hover:text-gray-200"
@@ -227,29 +206,6 @@ export function NotificationBell() {
                     </Link>
                   );
                 })
-              )
-            )}
-
-            {tab === "requests" && (
-              formNotifs.length === 0 ? (
-                <div className="px-4 py-8 text-center">
-                  <ClipboardCheck size={24} className="text-gray-600 mx-auto mb-2" />
-                  <p className="text-gray-500 text-xs">No new request notifications</p>
-                </div>
-              ) : (
-                formNotifs.map((notif) => (
-                  <button
-                    key={notif.id}
-                    onClick={() => handleFormNotifClick(notif)}
-                    className="w-full text-left flex items-start gap-3 px-4 py-3 border-b border-white/5 hover:bg-white/5 transition-colors"
-                  >
-                    <div className="w-2 h-2 rounded-full bg-blue-400 mt-1.5 shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-white text-xs leading-snug">{notif.message}</p>
-                      <p className="text-gray-500 text-[10px] mt-0.5">{timeAgo(notif.createdAt)}</p>
-                    </div>
-                  </button>
-                ))
               )
             )}
 

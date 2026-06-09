@@ -4,8 +4,9 @@ import { connectDB } from "@/lib/db";
 import { FormTracking } from "@/lib/models/FormTracking";
 import { randomUUID } from "crypto";
 
-function toJSON(r: Record<string, unknown>) {
-  return { ...r, id: (r._id as { toString(): string }).toString() };
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toJSON(r: any) {
+  return { ...r, id: r._id?.toString() };
 }
 
 export async function GET(req: NextRequest) {
@@ -55,5 +56,5 @@ export async function POST(req: NextRequest) {
     .populate("sharedById", "name")
     .lean();
 
-  return NextResponse.json(toJSON(populated as Record<string, unknown>), { status: 201 });
+  return NextResponse.json(toJSON(populated), { status: 201 });
 }
